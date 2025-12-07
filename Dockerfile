@@ -14,7 +14,8 @@ COPY requirements.txt /requirements.txt
 RUN pip install -r requirements.txt
 COPY rp_handler.py /
 
-RUN python -c "from chatterbox.tts import ChatterboxTTS; model = ChatterboxTTS.from_pretrained(device='cuda')"
+# Model will be downloaded at runtime instead of build time
+# RUN python -c "from chatterbox.tts import ChatterboxTTS; model = ChatterboxTTS.from_pretrained(device='cuda')"
 
 # Start the container
 CMD ["python3", "-u", "rp_handler.py"]
