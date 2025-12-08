@@ -45,11 +45,6 @@ def handler(event):
         yt_url = input_data.get('yt_url')  # YouTube URL (legacy support)
         exaggeration = input_data.get('exaggeration', 0.5)
         cfg_weight = input_data.get('cfg_weight', 0.5)
-
-        # DEBUG
-        print(f"DEBUG: prompt = {prompt[:50]}...")
-        print(f"DEBUG: audio_url = {audio_url}")
-        print(f"DEBUG: yt_url = {yt_url}")
         
         if not prompt:
             return {"error": "No prompt provided"}
@@ -57,12 +52,19 @@ def handler(event):
         # Create temp directory
         temp_dir = tempfile.mkdtemp()
         
+        # Track what we used for debugging
+        debug_info = {
+            "audio_url_received": audio_url,
+            "yt_url_received": yt_url,
+            "source_used": None,
+            "wav_file": None
+        }
+        
         # Get voice sample
         if audio_url:
-            # Download from direct URL
-            print(f"DEBUG: Downloading from {audio_url}")
             wav_file = download_audio_file(audio_url, temp_dir)
-            print(f"DEBUG: Downloaded to {wav_file}")
+            debug_info["source_used"] = "audio_url"
+            debug_info["wav_file"] = wav_file
         elif yt_url:
             # Download from YouTube (legacy)
             from yt_dlp import YoutubeDL
@@ -78,8 +80,10 @@ def handler(event):
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([yt_url])
             wav_file = os.path.join(temp_dir, 'audio.wav')
+            debug_info["source_used"] = "yt_url"
+            debug_info["wav_file"] = wav_file
         else:
-            return {"error": "No audio source provided (need audio_url or yt_url)"}
+            return {"error": "No audio source provided (need audio_url or yt_url)", "debug": debug_info}
         
         # Generate speech
         model = get_model()
@@ -105,7 +109,8 @@ def handler(event):
         
         return {
             "audio_base64": audio_base64,
-            "sample_rate": model.sr
+            "sample_rate": model.sr,
+            "debug": debug_info
         }
         
     except Exception as e:
