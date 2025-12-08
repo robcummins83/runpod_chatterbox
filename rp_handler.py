@@ -4,7 +4,6 @@ import torchaudio
 import base64
 import tempfile
 import os
-
 from chatterbox.tts import ChatterboxTTS
 
 model = None
@@ -45,6 +44,7 @@ def handler(event):
         yt_url = input_data.get('yt_url')  # YouTube URL (legacy support)
         exaggeration = input_data.get('exaggeration', 0.5)
         cfg_weight = input_data.get('cfg_weight', 0.5)
+        seed = input_data.get('seed', None)  # Optional seed for reproducibility
         
         if not prompt:
             return {"error": "No prompt provided"}
@@ -57,7 +57,8 @@ def handler(event):
             "audio_url_received": audio_url,
             "yt_url_received": yt_url,
             "source_used": None,
-            "wav_file": None
+            "wav_file": None,
+            "seed_used": seed
         }
         
         # Get voice sample
@@ -87,12 +88,17 @@ def handler(event):
         
         # Generate speech
         model = get_model()
-        audio_tensor = model.generate(
-            prompt,
-            audio_prompt_path=wav_file,
-            exaggeration=exaggeration,
-            cfg_weight=cfg_weight
-        )
+        
+        # Build generate kwargs
+        generate_kwargs = {
+            "audio_prompt_path": wav_file,
+            "exaggeration": exaggeration,
+            "cfg_weight": cfg_weight,
+        }
+        if seed is not None:
+            generate_kwargs["seed"] = seed
+        
+        audio_tensor = model.generate(prompt, **generate_kwargs)
         
         # Save output
         output_file = os.path.join(temp_dir, "output.wav")
