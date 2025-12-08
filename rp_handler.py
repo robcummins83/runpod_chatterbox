@@ -45,6 +45,11 @@ def handler(event):
         yt_url = input_data.get('yt_url')  # YouTube URL (legacy support)
         exaggeration = input_data.get('exaggeration', 0.5)
         cfg_weight = input_data.get('cfg_weight', 0.5)
+
+        # DEBUG
+        print(f"DEBUG: prompt = {prompt[:50]}...")
+        print(f"DEBUG: audio_url = {audio_url}")
+        print(f"DEBUG: yt_url = {yt_url}")
         
         if not prompt:
             return {"error": "No prompt provided"}
@@ -55,7 +60,9 @@ def handler(event):
         # Get voice sample
         if audio_url:
             # Download from direct URL
+            print(f"DEBUG: Downloading from {audio_url}")
             wav_file = download_audio_file(audio_url, temp_dir)
+            print(f"DEBUG: Downloaded to {wav_file}")
         elif yt_url:
             # Download from YouTube (legacy)
             from yt_dlp import YoutubeDL
