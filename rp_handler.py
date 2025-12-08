@@ -4,6 +4,7 @@ import torchaudio
 import base64
 import tempfile
 import os
+import torch
 from chatterbox.tts import ChatterboxTTS
 
 model = None
@@ -19,7 +20,6 @@ def download_audio_file(url: str, output_path: str) -> str:
     response = requests.get(url, allow_redirects=True)
     response.raise_for_status()
     
-    # Determine extension from content-type or URL
     content_type = response.headers.get('content-type', '')
     if 'audio/mpeg' in content_type or url.endswith('.mp3'):
         ext = '.mp3'
@@ -40,19 +40,17 @@ def handler(event):
     try:
         input_data = event['input']
         prompt = input_data.get('prompt', '')
-        audio_url = input_data.get('audio_url')  # Direct URL to audio file
-        yt_url = input_data.get('yt_url')  # YouTube URL (legacy support)
+        audio_url = input_data.get('audio_url')
+        yt_url = input_data.get('yt_url')
         exaggeration = input_data.get('exaggeration', 0.5)
         cfg_weight = input_data.get('cfg_weight', 0.5)
-        seed = input_data.get('seed', None)  # Optional seed for reproducibility
+        seed = input_data.get('seed', None)
         
         if not prompt:
             return {"error": "No prompt provided"}
         
-        # Create temp directory
         temp_dir = tempfile.mkdtemp()
         
-        # Track what we used for debugging
         debug_info = {
             "audio_url_received": audio_url,
             "yt_url_received": yt_url,
@@ -61,13 +59,11 @@ def handler(event):
             "seed_used": seed
         }
         
-        # Get voice sample
         if audio_url:
             wav_file = download_audio_file(audio_url, temp_dir)
             debug_info["source_used"] = "audio_url"
             debug_info["wav_file"] = wav_file
         elif yt_url:
-            # Download from YouTube (legacy)
             from yt_dlp import YoutubeDL
             ydl_opts = {
                 'format': 'bestaudio/best',
@@ -89,26 +85,25 @@ def handler(event):
         # Generate speech
         model = get_model()
         
-        # Build generate kwargs
-        generate_kwargs = {
-            "audio_prompt_path": wav_file,
-            "exaggeration": exaggeration,
-            "cfg_weight": cfg_weight,
-        }
+        # Set seed for reproducibility if provided
         if seed is not None:
-            generate_kwargs["seed"] = seed
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
         
-        audio_tensor = model.generate(prompt, **generate_kwargs)
+        audio_tensor = model.generate(
+            prompt,
+            audio_prompt_path=wav_file,
+            exaggeration=exaggeration,
+            cfg_weight=cfg_weight
+        )
         
-        # Save output
         output_file = os.path.join(temp_dir, "output.wav")
         torchaudio.save(output_file, audio_tensor, model.sr)
         
-        # Encode to base64
         with open(output_file, 'rb') as f:
             audio_base64 = base64.b64encode(f.read()).decode('utf-8')
         
-        # Cleanup
         for f in os.listdir(temp_dir):
             os.remove(os.path.join(temp_dir, f))
         os.rmdir(temp_dir)
